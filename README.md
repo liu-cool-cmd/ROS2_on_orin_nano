@@ -143,6 +143,7 @@ git clone https://github.com/orbbec/ros2_astra_camera.git
 
 cd ~/ros2_ws
 # 这一步可能会报错，如果报错，通常是 libuvc 问题，先试着编译
+sudo apt install python3-colcon-common-extensions -y #安装colcon用于编译
 colcon build --packages-select astra_camera
 ```
 
