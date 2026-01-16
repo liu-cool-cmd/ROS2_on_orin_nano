@@ -28,6 +28,8 @@ JetPack 6 基于 Ubuntu 22.04，CUDA 路径可能需要手动加一下，否则�
 ```bash
 echo 'export PATH=/usr/local/cuda/bin:$PATH' >> ~/.bashrc
 echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+echo 'export ROS_DOMAIN_ID=30' >> ~/.bashrc
+>设置 ROS 2 分布式通信频道 (防止干扰)
 source ~/.bashrc
 nvcc -V
 # 应显示 CUDA 12.x 版本
@@ -89,69 +91,119 @@ sudo udevadm trigger
     ls -l /dev/ydlidar
     ```
     *预期看到：* `... /dev/ydlidar -> ttyUSBX`
+---
 
-#### 2. 编译 YDLIDAR 4ROS 驱动 (ROS 2)
-不要用卖家给的树莓派包，直接去官方拉最新的 ROS 2 驱动。
+## 3. CH340 底盘驱动与系统排坑
+Ubuntu 22.04 默认存在服务冲突且可能缺失 CH341 模块。
 
+1. **卸载冲突服务 (重要)：**
+   ```bash
+   sudo apt remove brltty -y
+   ```
+
+2. **手动编译驱动 (若系统不识别 ttyCH341USB)：**
+   下载官方 [CH341SER_LINUX](https://www.wch.cn/download/CH341SER_LINUX_ZIP.html) 源码并编译：
+   ```bash
+   cd CH341SER_LINUX/driver
+   make
+   sudo make load
+   ```
+   *注意：若安装此驱动，udev 规则中的 KERNEL 应设为 `tty*` 以匹配 `ttyCH341USB0`。*
+
+---
+
+## 4. 激光雷达配置 (YDLIDAR TG15)
+
+### 4.1 安装 SDK 与驱动
 ```bash
-# 1. 创建工作空间
-mkdir -p ~/ros2_ws/src
-cd ~/ros2_ws/src
-
-# 2. 拉取 YDLIDAR SDK (驱动底层)
+mkdir -p ~/ros2_ws/src && cd ~/ros2_ws/src
 git clone https://github.com/YDLIDAR/YDLidar-SDK.git
-cd YDLidar-SDK
-mkdir build && cd build
-cmake ..
-make
-sudo make install
-cd ../..
+cd YDLidar-SDK && mkdir build && cd build && cmake .. && make && sudo make install
 
-# 3. 拉取 ROS 2 驱动包
-git clone https://github.com/YDLIDAR/ydlidar_ros2_driver.git
-# 切回工作空间根目录
-cd ~/ros2_ws
-
-# 4. 安装依赖
-rosdepc install --from-paths src --ignore-src -r -y #如果找不到rosdepc请运行sudo pip3 install rosdepc安装，并运行sudo rosdepc init&&rosdepc update来启动
-
-# 5. 编译
-colcon build --symlink-install --packages-select ydlidar_ros2_driver
+cd ~/ros2_ws/src
+git clone -b humble https://github.com/YDLIDAR/ydlidar_ros2_driver.git
 ```
 
-**测试雷达：**
-修改 `launch` 文件中的端口。
+### 4.2 修复 Humble 编译报错
+Humble 要求 `declare_parameter` 必须有默认值。执行以下“手术”脚本：
 ```bash
-# 假设雷达是 /dev/ttyUSB0
-sudo chmod 777 /dev/ttyUSB0
+sed -i 's/node->declare_parameter("\([^"]*\)");/node->declare_parameter<std::string>("\1", "");/g' ~/ros2_ws/src/ydlidar_ros2_driver/src/ydlidar_ros2_driver_node.cpp
+```
+
+### 4.3 TG15 参数调优
+修改 `~/ros2_ws/src/ydlidar_ros2_driver/params/ydlidar.yaml`：
+*   `port`: `/dev/ydlidar`
+*   `baudrate`: `512000`
+*   `lidar_type`: `1` (TOF型)
+*   `fixed_size`: `3000` (防止点数溢出警告)
+
+**编译与运行：**
+```bash
+cd ~/ros2_ws
+colcon build --symlink-install --packages-select ydlidar_ros2_driver
 source install/setup.bash
 ros2 launch ydlidar_ros2_driver ydlidar_launch.py
 ```
-*如果转起来了且终端有数据刷屏，雷达 pass。*
 
-#### 3. 编译奥比中光 Astra Pro 驱动
-Astra Pro 是老款，OpenNI2 协议。新的 Orbbec SDK v2 可能不完全支持它，我们要用 `ros2_astra_camera` (基于 OpenNI2)。
+---
 
-**依赖坑预警：** Ubuntu 22.04 需要 `libgflags-dev` 和 `libgoogle-glog-dev`。
+## 5. 深度相机配置 (Orbbec Astra Pro)
 
+### 5.1 安装依赖
 ```bash
-sudo apt install libopenni2-dev libgflags-dev libgoogle-glog-dev -y
-
-cd ~/ros2_ws/src
-# 克隆这一版，专门针对 ROS 2 Humble 和旧款 Astra
-git clone https://github.com/orbbec/ros2_astra_camera.git
-
-cd ~/ros2_ws
-# 这一步可能会报错，如果报错，通常是 libuvc 问题，先试着编译
-sudo apt install python3-colcon-common-extensions -y #安装colcon用于编译
-colcon build --packages-select astra_camera
+sudo apt update
+sudo apt install ros-humble-camera-info-manager libuvc-dev libgoogle-glog-dev nlohmann-json3-dev libgflags-dev libopenni2-dev -y
 ```
 
-**测试相机：**
+### 5.2 安装驱动
 ```bash
+cd ~/ros2_ws/src
+git clone https://github.com/orbbec/ros2_astra_camera.git
+
+# 安装 udev 规则
+cd ros2_astra_camera/astra_camera/scripts
+sudo bash install.sh
+```
+
+### 5.3 编译与运行
+```bash
+cd ~/ros2_ws
+colcon build --symlink-install --packages-up-to astra_camera
 source install/setup.bash
-ros2 launch astra_camera astra_mini.launch.py 
-# 注意：Pro版可能需要修改 launch 文件中的 device_type 或 vendor_id
+# 注意使用 XML 格式的 launch 文件
+ros2 launch astra_camera astra_pro.launch.xml
 ```
 
 ---
+
+## 6. 地面站 (Windows WSL2) 联机配置
+为了在笔记本上预览画面（Rviz2），需打通网络。
+
+1. **WSL2 网络模式：**
+   在 `C:\Users\用户名\.wslconfig` 添加（仅限 Win11 或 Win10 预览版，旧版需改用 **Discovery Server** 或 **桥接模式**）：
+   ```ini
+   [wsl2]
+   networkingMode=mirrored
+   ```
+
+2. **环境对齐：**
+   WSL2 必须安装 **Ubuntu 22.04 + ROS 2 Humble**。
+   ```bash
+   echo 'export ROS_DOMAIN_ID=30' >> ~/.bashrc
+   ```
+
+3. **数据验证：**
+   小车开启驱动后，WSL2 终端输入：
+   ```bash
+   ros2 topic list
+   ros2 topic hz /scan
+   ros2 topic hz /camera/color/image_raw
+   ```
+
+---
+
+## 7. 常用排坑命令
+*   **查看 USB 详细 ID：** `lsusb`
+*   **实时查看内核日志：** `sudo dmesg -w`
+*   **自动补齐 ROS 依赖：** `rosdepc install --from-paths src --ignore-src -r -y`
+*   **最大性能模式：** `sudo nvpmodel -m 0 && sudo jetson_clocks`
