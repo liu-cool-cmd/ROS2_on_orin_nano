@@ -136,9 +136,13 @@ git clone -b humble https://github.com/YDLIDAR/ydlidar_ros2_driver.git
 *   `baudrate`: `512000`
 *   `lidar_type`: `1` (1 代表 TOF 型雷达)
 *   `sample_rate`: `20`
-*   `fixed_size`: `3000` (手动添加此项，防止高频雷达点数溢出导致警告)
 
 #### 4.4 编译与运行
+>先安装colcon编译器
+```
+sudo apt update
+sudo apt install python3-colcon-common-extensions -y
+```
 ```bash
 cd ~/ros2_ws
 colcon build --symlink-install --packages-select ydlidar_ros2_driver
