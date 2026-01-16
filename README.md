@@ -112,39 +112,39 @@ Ubuntu 22.04 默认存在服务冲突且可能缺失 CH341 模块。
 
 ---
 
-## 4. 激光雷达配置 (YDLIDAR TG15)
+### 4. 激光雷达配置 (YDLIDAR TG15)
 
-### 4.1 安装 SDK 与驱动
+#### 4.1 安装底层 SDK
 ```bash
 mkdir -p ~/ros2_ws/src && cd ~/ros2_ws/src
 git clone https://github.com/YDLIDAR/YDLidar-SDK.git
-cd YDLidar-SDK && mkdir build && cd build && cmake .. && make && sudo make install
+cd YDLidar-SDK && mkdir build && cd build
+cmake .. && make && sudo make install
+```
 
+#### 4.2 下载 ROS 2 驱动 (使用 Humble 专属分支)
+不要直接下载默认分支，一定要指定 `-b humble`，这个分支已经由官方修复了参数声明报错问题。
+```bash
 cd ~/ros2_ws/src
+# 关键：使用 -b humble 参数
 git clone -b humble https://github.com/YDLIDAR/ydlidar_ros2_driver.git
 ```
 
-### 4.2 修复 Humble 编译报错
-Humble 要求 `declare_parameter` 必须有默认值。执行以下“手术”脚本：
-```bash
-sed -i 's/node->declare_parameter("\([^"]*\)");/node->declare_parameter<std::string>("\1", "");/g' ~/ros2_ws/src/ydlidar_ros2_driver/src/ydlidar_ros2_driver_node.cpp
-```
-
-### 4.3 TG15 参数调优
-修改 `~/ros2_ws/src/ydlidar_ros2_driver/params/ydlidar.yaml`：
+#### 4.3 修改 TG15 适配参数
+修改 `~/ros2_ws/src/ydlidar_ros2_driver/params/ydlidar.yaml` 以适配你的 TG15 雷达：
 *   `port`: `/dev/ydlidar`
 *   `baudrate`: `512000`
-*   `lidar_type`: `1` (TOF型)
-*   `fixed_size`: `3000` (防止点数溢出警告)
+*   `lidar_type`: `1` (1 代表 TOF 型雷达)
+*   `sample_rate`: `20`
+*   `fixed_size`: `3000` (手动添加此项，防止高频雷达点数溢出导致警告)
 
-**编译与运行：**
+#### 4.4 编译与运行
 ```bash
 cd ~/ros2_ws
 colcon build --symlink-install --packages-select ydlidar_ros2_driver
 source install/setup.bash
 ros2 launch ydlidar_ros2_driver ydlidar_launch.py
 ```
-
 ---
 
 ## 5. 深度相机配置 (Orbbec Astra Pro)
