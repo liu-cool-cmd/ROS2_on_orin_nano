@@ -35,6 +35,12 @@ nvcc -V
 # 应显示 CUDA 12.x 版本
 ```
 
+####3. 安装rosdepc工具
+
+```sudo pip3 install rosdepc
+sudo rosdepc init
+rosdepc update
+```
 ---
 
 ### 第三阶段：驱动移植与排坑 (硬核实战)
