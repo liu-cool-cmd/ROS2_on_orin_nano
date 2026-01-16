@@ -113,7 +113,7 @@ git clone https://github.com/YDLIDAR/ydlidar_ros2_driver.git
 cd ~/ros2_ws
 
 # 4. 安装依赖
-rosdepc install --from-paths src --ignore-src -r -y
+rosdepc install --from-paths src --ignore-src -r -y #如果找不到rosdepc请运行sudo pip3 install rosdepc安装，并运行sudo rosdepc init&&rosdepc update来启动
 
 # 5. 编译
 colcon build --symlink-install --packages-select ydlidar_ros2_driver
