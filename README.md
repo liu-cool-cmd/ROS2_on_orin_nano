@@ -118,14 +118,6 @@ rosdepc install --from-paths src --ignore-src -r -y #如果找不到rosdepc请�
 # 5. 编译
 colcon build --symlink-install --packages-select ydlidar_ros2_driver
 ```
->如果编译出错，请检查源码ros2_ws/src/ydlidar_ros2_driver/src/ydlidar_ros2_driver_node.cpp中
->node->declare_parameter("m1_mode");
-node->declare_parameter("m2_mode");
-node->declare_parameter("m3_mode");
->全部改为
->node->declare_parameter("m1_mode", 0);
->node->declare_parameter("m2_mode", 0);
->node->declare_parameter("m3_mode", 0);
 
 **测试雷达：**
 修改 `launch` 文件中的端口。
