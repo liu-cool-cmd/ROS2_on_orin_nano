@@ -163,11 +163,3 @@ ros2 launch astra_camera astra_mini.launch.py
 ```
 
 ---
-
-### 给准留美硕士的导师建议
-
-1.  **关于代码移植：** 卖家的树莓派代码（Python/C++）如果涉及到底盘控制（发送串口指令），你需要找到 `serial.Serial('/dev/ttyAMA0', ...)` 这行代码，把它改成 `/dev/ttyUSBx` (你需要确认底盘是哪个 USB)。
-2.  **SSH 开发工作流：** 既然你有 Windows 笔记本，**VS Code + Remote SSH 插件**是必须的。不要在 Jetson 那个小桌面上写代码，卡顿会消磨你的热情。在 VS Code 里直接编辑 Jetson 上的文件，体验和本地一样。
-3.  **心态管理：** 二手硬件 + 跨架构移植（Pi -> Jetson）+ ROS 2 必定会报错。遇到报错先把 Error 复制给 AI 或者 Google，不要怕。解决依赖问题的过程就是体现你 "System Integration" 能力的过程。
-
-现在，立刻去运行 `jtop`，那是你的第一道防线。**告诉我结果，我们再进行下一步。**
