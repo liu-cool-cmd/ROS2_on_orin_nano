@@ -185,7 +185,9 @@ ros2 launch astra_camera astra_pro.launch.xml
 ```
 
 ---
+**不推荐使用wsl,因为网络连通有一些我无法解决的问题，后文使用ubuntu笔记本当地面站**
 
+<del>
 ## 6. 地面站 (Windows WSL2) 联机配置
 为了在笔记本上预览画面（Rviz2），需打通网络。
 
@@ -209,6 +211,7 @@ ros2 launch astra_camera astra_pro.launch.xml
    ros2 topic hz /scan
    ros2 topic hz /camera/color/image_raw
    ```
+</del>
 
 ---
 
@@ -311,6 +314,8 @@ source install/setup.bash
 新一键启动：ros2 launch yahboomcar_bringup bringup_all.launch.py**
 
 
+<del> 
+    
 ## 8. Linux地面站配置
 
 ### 1. 身份与网络对齐 (在笔记本终端执行)
@@ -392,3 +397,107 @@ source ~/.bashrc
     *   输入 `ros2 topic list` —— **应该能看到 `/scan`, `/voltage` 等话题。**
     *   输入 `ros2 topic echo /voltage` —— **应该能看到跳动的电压数值。**
     *   输入 `rviz2` —— **打开 Rviz2，添加 LaserScan，Fixed Frame 选 `laser_frame`，红点应该瞬间出现！**
+</del>
+---
+
+## 8. 进阶：一键总启动 (Total Launch)
+为了避免每次打开 3 个终端，创建一个总启动文件来管理所有硬件。
+
+**文件路径**：`~/ros2_ws/src/yahboomcar_bringup/launch/bringup_all.launch.py`
+**代码内容**：
+```python
+import os
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource, FrontendLaunchDescriptionSource
+
+def generate_launch_description():
+    # 1. 定位功能包
+    chassis_pkg = get_package_share_directory('yahboomcar_bringup')
+    lidar_pkg   = get_package_share_directory('ydlidar_ros2_driver')
+    camera_pkg  = get_package_share_directory('astra_camera')
+
+    # 2. 包含子启动文件
+    # 底盘 (Python)
+    chassis_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(chassis_pkg, 'launch', 'yahboomcar_bringup_X3_launch.py'))
+    )
+    # 雷达 (Python)
+    lidar_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(lidar_pkg, 'launch', 'ydlidar_launch.py'))
+    )
+    # 相机 (XML) - 使用 FrontendLaunchDescriptionSource
+    camera_launch = IncludeLaunchDescription(
+        FrontendLaunchDescriptionSource(os.path.join(camera_pkg, 'launch', 'astra_pro.launch.xml'))
+    )
+
+    return LaunchDescription([chassis_launch, lidar_launch, camera_launch])
+```
+**使用方法**：
+```bash
+ros2 launch yahboomcar_bringup bringup_all.launch.py
+```
+
+---
+
+## 9. 地面站搭建 (Linux 笔记本)
+**环境要求**：Ubuntu 22.04 + ROS 2 Humble (与小车一致)。
+
+### 9.1 基础配置
+1. **安装 ROS 2**：使用鱼香 ROS 一键脚本安装 Humble Desktop 版。
+2. **安装编译工具**：`sudo apt install python3-colcon-common-extensions git`
+3. **网络对齐**：
+   * 连接同一 WiFi。
+   * 修改 `~/.bashrc`：`export ROS_DOMAIN_ID=30`。
+
+### 9.2 依赖包同步 (关键)
+为了让 Rviz2 正确显示小车状态，必须将小车的 **消息定义** 和 **模型文件** 同步到笔记本。
+
+1. **拷贝源码**：
+   将小车上的 `yahboomcar_msgs` 和 `yahboomcar_description` 文件夹拷贝到笔记本的 `~/ros2_ws/src/`。
+2. **编译**：
+>第0步安装好要用的工具
+```
+sudo apt update
+sudo apt install python3-colcon-common-extensions -y
+sudo pip3 install rosdepc
+sudo rosdepc init
+rosdepc update
+```
+   ```bash
+   cd ~/ros2_ws
+   rosdepc install --from-paths src --ignore-src -r -y
+   colcon build --symlink-install
+   source install/setup.bash
+   ```
+### 9.3. 验证
+
+现在，笔记本和小车应该彻底通了。
+
+1.  **在小车上**：启动雷达、相机或底盘驱动 (比如 `ros2 launch yahboomcar_bringup yahboomcar_bringup_X3_launch.py`)。
+2.  **在笔记本上**：
+    *   输入 `ros2 topic list` —— **应该能看到 `/scan`, `/voltage` 等话题。**
+    *   输入 `ros2 topic echo /voltage` —— **应该能看到跳动的电压数值。**
+    *   输入 `rviz2` —— **打开 Rviz2，添加 LaserScan，Fixed Frame 选 `laser_frame`，红点应该瞬间出现！**
+---
+
+## 10. Rviz2 可视化配置
+**启动**：在笔记本终端输入 `rviz2`。
+
+**关键配置**：
+1. **Fixed Frame**：设为 `base_link`。
+2. **RobotModel**：添加后，Description Topic 选 `/robot_description`。
+3. **LaserScan**：
+   * Topic: `/scan`
+   * **QoS Reliability**: 改为 `Best Effort` (解决 0 points 问题)。
+   * Size: 0.05
+4. **Image**：Topic 选 `/camera/color/image_raw`。
+
+**保存配置**：
+File -> Save Config As -> `~/ros2_ws/src/yahboomcar_bringup/rviz/my_robot.rviz`。
+
+---
+
+**把这段加进去，你的文档就完美了！** 
+准备好把车放到地板上，开始你的第一次“建图”之旅了吗？
