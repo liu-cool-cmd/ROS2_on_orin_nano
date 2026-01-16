@@ -202,8 +202,94 @@ ros2 launch astra_camera astra_pro.launch.xml
 
 ---
 
-## 7. 常用排坑命令
+##  常用排坑命令
 *   **查看 USB 详细 ID：** `lsusb`
 *   **实时查看内核日志：** `sudo dmesg -w`
 *   **自动补齐 ROS 依赖：** `rosdepc install --from-paths src --ignore-src -r -y`
 *   **最大性能模式：** `sudo nvpmodel -m 0 && sudo jetson_clocks`
+
+---
+
+## 7. 雅博 X3 底盘与扩展板驱动配置 (Yahboom Chassis)
+
+本节记录如何驱动雅博专用扩展板，实现底盘控制、IMU反馈及电压监控。
+
+### 7.1 底层硬件授权 (udev)
+雅博驱动源码中多处硬编码引用了 `/dev/myserial`，为兼容源码且保留规范命名，建议设置双别名。
+
+**修改规则文件**：`sudo nano /etc/udev/rules.d/99-yahboom.rules`
+**写入以下内容**：
+```bash
+# 雅博底盘扩展板 (CH340芯片)
+KERNEL=="tty*", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", MODE:="0777", SYMLINK+="yahboomcar myserial"
+```
+*注：SYMLINK 中增加 myserial 是为了适配雅博 Mcnamu_driver_X3.py 中的默认路径。*
+
+**刷新规则**：
+```bash
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+### 7.2 安装底层 Python SDK (Rosmaster_Lib)
+底盘节点依赖雅博封装的串口协议库，必须先于 ROS 节点安装。
+
+```bash
+# 进入从 software 目录拷贝出的 Rosmaster_Lib 文件夹
+cd ~/Rosmaster_Lib
+sudo python3 setup.py install
+```
+
+### 7.3 补齐系统级依赖
+雅博 X3 的启动脚本包含模型解析、IMU 滤波及 EKF 融合，需手动补齐以下 Humble 标准包：
+
+```bash
+sudo apt update
+sudo apt install ros-humble-joint-state-publisher \
+                 ros-humble-xacro \
+                 ros-humble-robot-state-publisher \
+                 ros-humble-imu-filter-madgwick \
+                 ros-humble-teleop-twist-keyboard -y
+```
+
+### 7.4 源码合并与编译
+将雅博提供的 `library_ws/src` (消息包) 和 `yahboomcar_ws/src` (驱动包) 全部拷贝至自己的工作空间。
+
+```bash
+cd ~/ros2_ws
+# 自动安装 package.xml 中声明的其他依赖
+rosdepc install --from-paths src --ignore-src -r -y
+# 编译
+colcon build --symlink-install
+source install/setup.bash
+```
+
+### 7.5 运行与控制
+
+1. **设置车型变量**（必须，否则无法加载对应的 X3 模型）：
+   ```bash
+   echo 'export ROBOT_TYPE=X3' >> ~/.bashrc
+   source ~/.bashrc
+   ```
+
+2. **启动底盘驱动**：
+   ```bash
+   ros2 launch yahboomcar_bringup yahboomcar_bringup_X3_launch.py
+   ```
+
+3. **键盘控制测试**：
+   ```bash
+   # 开启新终端
+   ros2 run yahboomcar_ctrl yahboom_keyboard
+   ```
+   *控制键：i(前)、k(停)、j(左转)、l(右转)、u(左横移)、o(右横移)。*
+
+### 7.6 常用监控话题
+- **电压监控**：`ros2 topic echo /voltage` (建议不低于 11.0V)
+- **速度反馈**：`ros2 topic echo /vel_raw`
+- **IMU 姿态**：`ros2 topic echo /imu/imu_data`
+
+---
+
+### 💡 调试秘籍
+- **Source 机制**：每当修改了驱动源码或添加了新包，必须在 `colcon build` 后重新 `source install/setup.bash`，否则新包无法被 `ros2 launch` 识别。
+- **串口占用**：如果报 `SerialException: [Errno 16] Device or resource busy`，通常是因为之前的驱动进程没杀掉，执行 `pkill -9 -f Mcnamu_driver` 即可。
