@@ -1,3 +1,8 @@
+本机配置：亚博x3麦轮拓展板，astra pro深度相机，4ROS TOF雷达，orin nano 8GB super开发板
+系统：Ubuntu22.04  ROS2（Humble）
+大量ai生成的因为我不会
+
+
 环境极速搭建 (为移植做准备)
 
 不要用官方源，速度慢到让你怀疑人生。也不要手动配 ROS 2 源，容易 GPG Key 报错。我们用“一行代码”工具。
