@@ -304,6 +304,12 @@ source install/setup.bash
 - **Source 机制**：每当修改了驱动源码或添加了新包，必须在 `colcon build` 后重新 `source install/setup.bash`，否则新包无法被 `ros2 launch` 识别。
 - **串口占用**：如果报 `SerialException: [Errno 16] Device or resource busy`，通常是因为之前的驱动进程没杀掉，执行 `pkill -9 -f Mcnamu_driver` 即可。
 
+**总结启动指令：
+底盘：ros2 launch yahboomcar_bringup yahboomcar_bringup_X3_launch.py
+雷达：ros2 launch ydlidar_ros2_driver ydlidar_launch.py
+相机：ros2 launch astra_camera astra_pro.launch.xml
+新一键启动：ros2 launch yahboomcar_bringup bringup_all.launch.py**
+
 
 ## 8. Linux地面站配置
 
