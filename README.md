@@ -498,6 +498,3 @@ rosdepc update
 File -> Save Config As -> `~/ros2_ws/src/yahboomcar_bringup/rviz/my_robot.rviz`。
 
 ---
-
-**把这段加进去，你的文档就完美了！** 
-准备好把车放到地板上，开始你的第一次“建图”之旅了吗？
