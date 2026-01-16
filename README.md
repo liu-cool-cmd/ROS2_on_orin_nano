@@ -303,3 +303,86 @@ source install/setup.bash
 ### 💡 调试秘籍
 - **Source 机制**：每当修改了驱动源码或添加了新包，必须在 `colcon build` 后重新 `source install/setup.bash`，否则新包无法被 `ros2 launch` 识别。
 - **串口占用**：如果报 `SerialException: [Errno 16] Device or resource busy`，通常是因为之前的驱动进程没杀掉，执行 `pkill -9 -f Mcnamu_driver` 即可。
+
+
+## 8. Linux地面站配置
+
+### 1. 身份与网络对齐 (在笔记本终端执行)
+
+首先确保笔记本和小车连在同一个 WiFi 下。
+
+**设置 Domain ID (必须和小车一致):**
+```bash
+# 将 ID=30 写入配置文件
+echo 'export ROS_DOMAIN_ID=30' >> ~/.bashrc
+
+# 立即生效
+source ~/.bashrc
+```
+
+---
+
+### 2. 搬运并编译自定义消息包 (最关键)
+
+你需要把小车上的 `yahboomcar_msgs` 文件夹弄到笔记本上。这相当于给笔记本装了一本“字典”，否则 Rviz2 收到数据也会报错说“看不懂”。
+
+#### 第一步：创建工作空间 (如果还没建)
+在笔记本终端执行：
+```bash
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+```
+
+#### 第二步：获取源码 (两种方法选一)
+
+*   **方法 A (最快 - 远程拷贝)：** 如果你知道小车的 IP (假设是 192.168.10.3) 和用户名 (假设是 liu)，直接在**笔记本终端**运行：
+    ```bash
+    # 格式: scp -r <小车用户名>@<小车IP>:~/ros2_ws/src/yahboomcar_msgs .
+    scp -r liu@192.168.10.3:~/ros2_ws/src/yahboomcar_msgs .
+    ```
+    *(输入小车密码后，文件夹就会自动传过来)*
+
+*   **方法 B (U盘/Git)：** 如果你之前备份过，直接把 `yahboomcar_msgs` 文件夹拷贝到笔记本的 `~/ros2_ws/src/` 目录下即可。
+
+#### 第三步：编译 (让笔记本认识这些消息)
+>第0步安装好要用的工具
+```
+sudo apt update
+sudo apt install python3-colcon-common-extensions -y
+sudo pip3 install rosdepc
+sudo rosdepc init
+rosdepc update
+```
+
+```bash
+cd ~/ros2_ws
+
+# 1. 自动安装编译依赖 (防止报错)
+# 如果你还没装 rosdepc，先运行: sudo pip3 install rosdepc && sudo rosdepc init && rosdepc update
+rosdepc install --from-paths src --ignore-src -r -y
+
+# 2. 编译
+colcon build --symlink-install
+
+# 3. 刷新环境 (至关重要)
+source install/setup.bash
+```
+
+#### 第四步：把环境加载写入 .bashrc
+为了防止以后每次打开终端都要手动 source，直接写死它：
+```bash
+echo 'source ~/ros2_ws/install/setup.bash' >> ~/.bashrc
+source ~/.bashrc
+```
+
+---
+
+### 3. 终极验证 (见证合体)
+
+现在，笔记本和小车应该彻底通了。
+
+1.  **在小车上**：启动雷达、相机或底盘驱动 (比如 `ros2 launch yahboomcar_bringup yahboomcar_bringup_X3_launch.py`)。
+2.  **在笔记本上**：
+    *   输入 `ros2 topic list` —— **应该能看到 `/scan`, `/voltage` 等话题。**
+    *   输入 `ros2 topic echo /voltage` —— **应该能看到跳动的电压数值。**
+    *   输入 `rviz2` —— **打开 Rviz2，添加 LaserScan，Fixed Frame 选 `laser_frame`，红点应该瞬间出现！**
