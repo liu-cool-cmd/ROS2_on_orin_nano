@@ -574,55 +574,92 @@ ros2 launch yahboomcar_nav map_gmapping_launch.py
     ```
 ### 11.6 热点设置
 
-### 场景一：连接路由器 (Router)
+我们写两个脚本：一个叫 **“回家模式”** (`to_home.sh`)，一个叫 **“出门模式”** (`to_hotspot.sh`)。
 
-假设你的路由器 Wi-Fi 叫 `MyHome`，密码是 `12345678`。
+### 1. 创建切换脚本
 
-**命令：**
+你需要建立两个文件，直接复制下面的内容。
+
+#### 脚本 A：出门模式 (`to_hotspot.sh`)
+这个脚本会断开家里 WiFi，开启小车热点。
+
+1.  创建文件：`nano ~/to_hotspot.sh`
+2.  粘贴内容：
+    ```bash
+    #!/bin/bash
+    echo "========================================"
+    echo "正在切换到 [户外热点模式] ..."
+    echo "1. 即将断开 33_5G"
+    echo "2. 即将开启 Hotspot"
+    echo "⚠️  警告：SSH 即将断开！"
+    echo "请用笔记本连接 'Hotspot'，SSH 目标 IP 变为: 10.42.0.1"
+    echo "========================================"
+    
+    # 强制执行，分号确保即使前面报错后面也会继续执行
+    sudo nmcli connection down 33_5G; sudo nmcli connection up Hotspot
+    ```
+3.  保存退出：`Ctrl+O` -> `Enter` -> `Ctrl+X`
+
+#### 脚本 B：回家模式 (`to_home.sh`)
+这个脚本会关掉热点，连回你的路由器。
+
+1.  创建文件：`nano ~/to_home.sh`
+2.  粘贴内容：
+    ```bash
+    #!/bin/bash
+    echo "========================================"
+    echo "正在切换到 [家庭WiFi模式] ..."
+    echo "1. 即将关闭 Hotspot"
+    echo "2. 即将连接 33_5G"
+    echo "⚠️  警告：SSH 即将断开！"
+    echo "请去路由器后台或用扫描工具查找小车的新 IP！"
+    echo "========================================"
+    
+    # 强制执行
+    sudo nmcli connection down Hotspot; sudo nmcli connection up 33_5G
+    ```
+3.  保存退出。
+
+#### 赋予运行权限 (必做)
+在终端执行一次：
 ```bash
-sudo nmcli device wifi connect "MyHome" password "12345678"
+chmod +x ~/to_hotspot.sh ~/to_home.sh
 ```
-*   **成功标志：** 终端会显示 `Device 'wlan0' successfully activated...`。
-*   **注意：** 如果你的 SSID 有空格，一定要加**引号**。
 
 ---
 
-### 场景二：连接手机热点 (Hotspot)
+### 2. 怎么使用？
 
-假设你在户外调试，要连你的 iPhone 热点 `MyiPhone`，密码 `88888888`。
-
-**命令：**
+#### 当你要出门时（或者笔记本直连小车）：
+在小车终端输入：
 ```bash
-# 1. 扫描一下（确认能搜到）
-sudo nmcli device wifi list
+./to_hotspot.sh
+```
+*   **后果**：SSH 会卡死/断开。
+*   **你的操作**：笔记本搜索 WiFi `Hotspot` 连上去，然后 `ssh liu@10.42.0.1`。
 
-# 2. 连接
-sudo nmcli device wifi connect "MyiPhone" password "88888888"
+#### 当你回家时（需要小车联网）：
+在小车终端输入：
+```bash
+./to_home.sh
+```
+*   **后果**：SSH 会卡死/断开。
+*   **你的操作**：笔记本连回 `33_5G`，去路由器后台找小车的新 IP (例如 192.168.x.x)，然后重新 SSH。
+
+### 3 手动救急命令
+如果脚本失效，可使用原始 `nmcli` 命令强切：
+
+```bash
+# 强行开热点
+sudo nmcli con down 33_5G; sudo nmcli con up Hotspot
+
+# 强行连家里 WiFi
+sudo nmcli con down Hotspot; sudo nmcli con up 33_5G
 ```
 
----
-
-### 💡 极客进阶：如何“自动切换”？
-
-`NetworkManager` 会记住你连过的所有 Wi-Fi，并给它们建立**“连接文件” (Connection Profile)**。
-
-1.  **查看已保存的网络：**
-    ```bash
-    nmcli connection show
-    ```
-    *(你会看到 `MyHome`, `MyiPhone` 都在列表里)*
-
-2.  **设置优先级 (Priority)：**
-    如果你想让它优先连热点，可以调高热点的优先级。
-    ```bash
-    sudo nmcli connection modify "MyiPhone" connection.autoconnect-priority 100
-    ```
-
-3.  **如果不想让它连某个网了：**
-    ```bash
-    sudo nmcli connection delete "MyHome"
-    ```
-
+### 4 常见问题
+*   **切换后连不上网**：检查小车和笔记本是否在同一个 WiFi 下。
+*   **Foxglove 无画面**：切换网络后 IP 变了，记得在 Foxglove 连接设置里修改 IP 地址（`10.42.0.1` 或 `192...`）。
 ---
 
 ### 🚨 救命稻草：万一连错了失联了怎么办？
