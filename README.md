@@ -4,11 +4,11 @@
 
 基本命令：
 # 1. 杀掉所有残留的 ROS 进程
-sudo pkill -f ros
+sudo pkill -f ros     
 sudo pkill -f ydlidar
 
-# 2. 重启 ROS 2 守护进程
-ros2 daemon stop
+# 2. 重启 ROS 2 守护进程 
+ros2 daemon stop     
 ros2 daemon start
 
 #### 1. 换源与 ROS 2 Humble 安装
