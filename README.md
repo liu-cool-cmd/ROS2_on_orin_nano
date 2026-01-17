@@ -572,6 +572,68 @@ ros2 launch yahboomcar_nav map_gmapping_launch.py
     # 保存地图名为 my_home (会生成 .pgm 和 .yaml 两个文件)
     ros2 run nav2_map_server map_saver_cli -f ~/my_home
     ```
+### 11.6 热点设置
+
+### 场景一：连接路由器 (Router)
+
+假设你的路由器 Wi-Fi 叫 `MyHome`，密码是 `12345678`。
+
+**命令：**
+```bash
+sudo nmcli device wifi connect "MyHome" password "12345678"
+```
+*   **成功标志：** 终端会显示 `Device 'wlan0' successfully activated...`。
+*   **注意：** 如果你的 SSID 有空格，一定要加**引号**。
+
+---
+
+### 场景二：连接手机热点 (Hotspot)
+
+假设你在户外调试，要连你的 iPhone 热点 `MyiPhone`，密码 `88888888`。
+
+**命令：**
+```bash
+# 1. 扫描一下（确认能搜到）
+sudo nmcli device wifi list
+
+# 2. 连接
+sudo nmcli device wifi connect "MyiPhone" password "88888888"
+```
+
+---
+
+### 💡 极客进阶：如何“自动切换”？
+
+`NetworkManager` 会记住你连过的所有 Wi-Fi，并给它们建立**“连接文件” (Connection Profile)**。
+
+1.  **查看已保存的网络：**
+    ```bash
+    nmcli connection show
+    ```
+    *(你会看到 `MyHome`, `MyiPhone` 都在列表里)*
+
+2.  **设置优先级 (Priority)：**
+    如果你想让它优先连热点，可以调高热点的优先级。
+    ```bash
+    sudo nmcli connection modify "MyiPhone" connection.autoconnect-priority 100
+    ```
+
+3.  **如果不想让它连某个网了：**
+    ```bash
+    sudo nmcli connection delete "MyHome"
+    ```
+
+---
+
+### 🚨 救命稻草：万一连错了失联了怎么办？
+
+这是无头模式最大的恐惧：你敲完命令，回车，SSH 断了，然后 Jetson 再也没连上任何网。
+
+**解决方案：USB 共享网络 (USB Tethering)**
+
+1.  拿一根 Type-C 数据线，把 Jetson 和你的笔记本（或者手机）连起来。
+2.  Jetson 会默认开启一个 `l4tbr0` 网桥，IP 是 **`192.168.55.1`**。
+3.  **只要这根线连着，你就永远可以通过 `ssh liu@192.168.55.1` 进去救场！**
 
 ---
 
