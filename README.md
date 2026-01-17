@@ -2,6 +2,15 @@
 **系统：Ubuntu22.04  ROS2（Humble）**  
 大量ai生成的因为我不会  
 
+基本命令：
+# 1. 杀掉所有残留的 ROS 进程
+sudo pkill -f ros
+sudo pkill -f ydlidar
+
+# 2. 重启 ROS 2 守护进程
+ros2 daemon stop
+ros2 daemon start
+
 #### 1. 换源与 ROS 2 Humble 安装
 使用国内大神开发的 `fishros` 工具，它是小白和高手的共同选择。
 
