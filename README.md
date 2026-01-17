@@ -498,3 +498,86 @@ rosdepc update
 File -> Save Config As -> `~/ros2_ws/src/yahboomcar_bringup/rviz/my_robot.rviz`。
 
 ---
+
+这是为你整理的 **SLAM 建图篇 README**。
+
+我特意把**“大小写陷阱”**和**“缺失启动文件修复”**这两个关键步骤高亮了出来，因为这是直接阻断运行的硬伤。你可以直接追加到你之前的文档后面。
+
+---
+
+## 11. SLAM 建图实战 (Gmapping)
+
+本节记录如何修复雅博脚本的兼容性问题，并跑通 Gmapping 建图全流程。
+
+### 11.1 修正环境变量 (重要！)
+雅博的启动脚本对变量大小写敏感，且需要指定雷达类型。
+
+1.  **编辑配置文件**：`nano ~/.bashrc`
+2.  **修改/添加以下内容**：
+    ```bash
+    # 车型必须是小写 'x3'，大写 'X3' 会导致脚本报错
+    export ROBOT_TYPE=x3
+    
+    # 指定雷达类型，触发 4ros 启动逻辑
+    export RPLIDAR_TYPE=4ros
+    ```
+3.  **生效**：`source ~/.bashrc`
+
+### 11.2 修复雷达启动文件缺失 (The "Raw" Fix)
+雅博的建图脚本硬编码调用 `ydlidar_raw_launch.py`，但官方驱动包中只有 `ydlidar_launch.py`。需手动创建替身并编译。
+
+**操作步骤：**
+```bash
+# 1. 进入驱动源码目录
+cd ~/ros2_ws/src/ydlidar_ros2_driver/launch
+
+# 2. 复制并重命名 (制作替身)
+cp ydlidar_launch.py ydlidar_raw_launch.py
+
+# 3. 重新编译 (让系统将新文件安装到 install 目录)
+cd ~/ros2_ws
+colcon build --symlink-install --packages-select ydlidar_ros2_driver
+source install/setup.bash
+```
+
+### 11.3 启动建图 (小车端)
+**前置检查**：确保没有其他占用串口的程序在运行（如之前的 bringup），如有请先 `Ctrl+C` 停止。
+
+```bash
+# 启动 Gmapping 建图 (会自动带起底盘和雷达)
+ros2 launch yahboomcar_nav map_gmapping_launch.py
+```
+*成功标志：终端显示 `robot_type = x3`，雷达开始旋转，无红色 Error。*
+
+### 11.4 地面站可视化 (笔记本端)
+1.  **启动 Rviz2**：`rviz2`
+2.  **关键配置**：
+    *   **Fixed Frame**: 修改为 `map` (注意：建图模式下世界中心是 map)。
+    *   **Add -> Map**: Topic 选择 `/map`。
+    *   **Add -> LaserScan**: Topic 选择 `/scan` (QoS: Best Effort)。
+    *   **Add -> RobotModel**: 查看小车实时位置。
+
+### 11.5 跑图与保存
+1.  **开启键盘控制** (笔记本端新终端)：
+    ```bash
+    ros2 run yahboomcar_ctrl yahboom_keyboard
+    ```
+    *操作提示：速度要慢，转弯要缓，尽量走闭环（回到原点）以修正误差。*
+
+2.  **保存地图** (建图完成后，在小车或笔记本端执行)：
+    ```bash
+    # 安装地图服务工具 (如果未安装)
+    sudo apt install ros-humble-nav2-map-server
+
+    # 保存地图名为 my_home (会生成 .pgm 和 .yaml 两个文件)
+    ros2 run nav2_map_server map_saver_cli -f ~/my_home
+    ```
+
+---
+
+### 💡 其他注意事项
+*   **地图重影/撕裂**：通常是因为车速太快导致雷达帧匹配失败，或者地板太滑导致里程计打滑。**解决方法：减速慢行。**
+*   **Rviz 里的车原地乱跳**：可能是 TF 树冲突。检查是否误开了其他发布 TF 的节点（如单独的 description launch）。
+*   **雷达 2030 警告**：雷达驱动设定的fixed point count太小了，暂时不知道怎么解决
+
+---
