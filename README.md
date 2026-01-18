@@ -689,3 +689,134 @@ sudo nmcli con down Hotspot; sudo nmcli con up 33_5G
 *   **雷达 2030 警告**：雷达驱动设定的fixed point count太小了，暂时不知道怎么解决
 
 ---
+恭喜你！在经历了“内存爆满”、“进程互殴”和“时空错位”的重重磨难后，你终于拥有了一个**干净、专业且标准**的机器人开发环境。
+
+既然编译已经全绿通过，**现在的下一步就是：正式开始校准，然后建图！**
+
+以下是为你整理的 **README 进阶篇：校准与建图全指南**。
+
+---
+
+# 机器人性能调优与 SLAM 建图手册
+
+本手册记录了从底层校准到高层建图的完整链路，适用于已完成基础驱动配置的雅博 X3 机器人。
+
+---
+
+## 11. 核心前置：环境健康检查
+在进行任何校准或建图前，必须确保“脉络”通畅。
+
+### 11.1 强制时间同步 (每次开机必做)
+Jetson 无电池，时间漂移会导致 TF 坐标丢失。
+```bash
+# 在笔记本执行，将笔记本时间同步给小车
+ssh liu@<小车IP> "sudo date -s '@$(date +%s)'"
+```
+
+### 11.2 坐标树检查
+```bash
+# 在笔记本输入，确认 Average Delay < 0.05s
+ros2 run tf2_ros tf2_monitor
+```
+
+---
+
+## 12. 线速度校准 (Linear Calibration)
+**目的**：解决“给 1 米指令实际跑 2 米”的问题，修正 `linear_scale_x`。
+
+1. **小车端启动驱动** (注意开启 TF 发布)：
+   ```bash
+   ros2 launch yahboomcar_bringup yahboomcar_bringup_X3_launch.py --ros-args -p pub_odom_tf:=true
+   ```
+2. **小车端运行脚本**：
+   ```bash
+   ros2 run yahboomcar_bringup calibrate_linear_X3
+   ```
+3. **笔记本端调参**：
+   * 启动：`ros2 run rqt_reconfigure rqt_reconfigure`
+   * 选择 `calibrate_linear` 节点。
+   * 修改 `speed` 为 `0.2`。
+   * 勾选 `start_test`。
+4. **计算与保存**：
+   * 测量实际位移 $L_{actual}$。
+   * `新系数 = 当前系数(1.0) * (1.0 / L_actual)`。
+   * 使用 **VS Code** 编辑小车上的 `~/ros2_ws/src/yahboomcar_bringup/param/yahboomcar_bringup_X3.yaml`，更新 `linear_scale_x`。
+
+---
+
+## 13. 角速度校准 (Angular Calibration)
+**目的**：解决小车旋转角度不准的问题，修正 `angular_scale`。
+
+1. **小车端启动驱动** (保持 `pub_odom_tf:=true`)。
+2. **小车端运行脚本**：
+   ```bash
+   ros2 run yahboomcar_bringup calibrate_angular_X3
+   ```
+3. **笔记本端调参**：
+   * 打开 `rqt_reconfigure`，选择 `calibrate_angular`。
+   * 修改 `test_angle` 为 `360.0`。
+   * 修改 `speed` 为 `0.5` (弧度/秒)。
+   * 勾选 `start_test`。
+4. **计算与保存**：
+   * 观察小车是否正好转回原点。
+   * 计算方法同线速度，更新 YAML 文件中的 `angular_scale`。
+
+---
+
+## 14. SLAM 建图实战 (Gmapping)
+
+### 14.1 启动建图
+**注意**：建图前请关闭之前的驱动进程。
+```bash
+# 小车端执行
+ros2 launch yahboomcar_nav map_gmapping_launch.py
+```
+
+### 14.2 笔记本可视化配置 (Rviz2)
+* **Fixed Frame**: `map`
+* **Add Map**: Topic `/map`
+* **Add LaserScan**: Topic `/scan`, QoS 改为 **Best Effort**。
+
+### 14.3 操控与保存
+1. **键盘控制**：`ros2 run yahboomcar_ctrl yahboom_keyboard`
+2. **保存地图**（建图满意后，在小车新终端执行）：
+   ```bash
+   # 必须安装 nav2-map-server
+   sudo apt install ros-humble-nav2-map-server
+   ros2 run nav2_map_server map_saver_cli -f ~/my_map
+   ```
+
+---
+
+## 15. 系统维护与避坑总结 (重要)
+
+### 15.1 内存保护 (针对 Orin Nano 8G)
+编译大包（如 EKF, TEB）容易卡死，建议：
+1. **优先使用系统版**：`sudo apt install ros-humble-robot-localization ros-humble-teb-local-planner`。
+2. **删除源码**：将 `src` 里的同名文件夹移走，防止 `colcon` 重复编译。
+3. **开启 Swap**：
+   ```bash
+   sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
+   sudo mkswap /swapfile && sudo swapon /swapfile
+   ```
+
+### 15.2 清理“幽灵进程”
+如果遇到 `Serial Port Busy` 或延迟极高，执行一键清场：
+```bash
+sudo pkill -9 -f ros && sudo pkill -9 -f yahboom
+ros2 daemon stop && ros2 daemon start
+```
+
+### 15.3 VS Code 远程开发技巧
+* 使用 `Remote - SSH` 插件连接小车 IP。
+* 直接在 VS Code 中修改 `yaml` 参数并 `Ctrl+S` 保存。
+* 使用集成终端进行编译和启动，效率提升 200%。
+
+---
+
+### 🚀 明天的任务
+你已经校准好了线速度（0.5），**明天的目标只有两个：**
+1. **跑通角速度校准**：让小车转弯不再“飘”。
+2. **画出第一张完整的地图**：去客厅大开杀戒，把家里的轮廓建出来！
+
+**今晚好好休息，你的系统现在非常健康！晚安！**
