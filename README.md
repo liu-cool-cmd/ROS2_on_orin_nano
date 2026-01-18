@@ -814,9 +814,63 @@ ros2 daemon stop && ros2 daemon start
 
 ---
 
-### 🚀 明天的任务
-你已经校准好了线速度（0.5），**明天的目标只有两个：**
-1. **跑通角速度校准**：让小车转弯不再“飘”。
-2. **画出第一张完整的地图**：去客厅大开杀戒，把家里的轮廓建出来！
+## 12. SLAM 建图进阶：从 Gmapping 切换至 Cartographer
 
-**今晚好好休息，你的系统现在非常健康！晚安！**
+**为什么换？**
+*   **Gmapping**：过于依赖里程计，一旦轮子打滑或电机不准，地图立刻重影，且无法自动修正。
+*   **Cartographer**：支持“回环检测”。当小车回到扫过的地方，它能自动识别并把歪掉的地图“掰正”。
+
+### 12.1 安装算法包 (小车端执行)
+JetPack 默认可能不带该算法，需手动补齐：
+```bash
+sudo apt update
+sudo apt install ros-humble-cartographer ros-humble-cartographer-ros -y
+```
+
+### 12.2 启动 Cartographer 建图
+**注意**：启动前请按 `Ctrl+C` 关闭所有之前的驱动和建图窗口。
+
+```bash
+# 小车终端执行
+ros2 launch yahboomcar_nav map_cartographer_launch.py
+```
+*如果报错找不到文件，请确认 `yahboomcar_nav/launch` 目录下是否有该文件。*
+
+### 12.3 跑图技巧 (针对宿舍狭窄环境)
+1.  **分段挪动**：不要一直长按按键。点按 `w` 走 10 厘米，停 1 秒；点按 `a/d` 转 5 度，停 1 秒。
+2.  **制造回环**：控制小车走一个“O”型圈回到起点。当你回到起点时，观察 Rviz2，你会发现原本错位的墙壁可能会猛地跳动一下对齐，这就是 Cartographer 在施展“回环修复”。
+3.  **避开吸光物体**：尽量不要让雷达直对着黑色棉质床单，这会导致雷达数据丢失。
+
+---
+
+## 13. 地图保存 (ROS 2 Humble 标准方法)
+
+Cartographer 的地图是动态生成的，建完图后必须手动保存。
+
+### 13.1 安装保存工具 (如未安装)
+```bash
+sudo apt install ros-humble-nav2-map-server -y
+```
+
+### 13.2 一键保存指令
+在小车或笔记本新终端执行：
+```bash
+# 路径可自定义，这里保存为 my_room_map
+ros2 run nav2_map_server map_saver_cli -f ~/my_room_map
+```
+*执行成功后，你会得到 `my_room_map.pgm` (图像) 和 `my_room_map.yaml` (坐标信息)。*
+
+---
+
+## 14. 故障自查 (必看)
+*   **现象：Rviz 显示 Map 报错 "No transform from [map] to [odom]"**
+    *   *原因*：建图算法还没初始化成功。
+    *   *解决*：控制小车前后挪动一下，给算法一点里程计变化量。
+*   **现象：小车在地图上瞬移**
+    *   *原因*：雷达点云与地图匹配失败，通常是因为转弯太快。
+    *   *解决*：降低 `angular_scale` 或转弯时更温柔。
+*   **现象：SSH 突然断开**
+    *   *原因*：网络波动。
+    *   *解决*：连接小车热点 `Hotspot` 进行跑图，IP 切换为 `10.42.0.1`。
+
+---
