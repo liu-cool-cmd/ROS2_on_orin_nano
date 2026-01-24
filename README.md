@@ -666,6 +666,21 @@ sudo nmcli con down 33_5G; sudo nmcli con up Hotspot
 sudo nmcli con down Hotspot; sudo nmcli con up 33_5G
 ```
 
+### 4 网络固定与静态 IP 设置
+为保证地面站 (笔记本) 每次都能通过固定 IP 访问小车，需在小车端设置静态 IP。
+#### 常用指令
+```
+# 连接新 WiFi:
+sudo nmcli device wifi connect "SSID" password "Password"
+# 查看当前连接:
+nmcli connection show
+#一键固定 IP:
+# 以设置 192.168.1.100 为例
+sudo nmcli con mod "WiFi名" ipv4.addresses 192.168.1.100/24
+sudo nmcli con mod "WiFi名" ipv4.gateway 192.168.1.1
+sudo nmcli con mod "WiFi名" ipv4.method manual
+sudo nmcli con up "WiFi名"
+```
 ### 4 常见问题
 *   **切换后连不上网**：检查小车和笔记本是否在同一个 WiFi 下。
 *   **Foxglove 无画面**：切换网络后 IP 变了，记得在 Foxglove 连接设置里修改 IP 地址（`10.42.0.1` 或 `192...`）。
