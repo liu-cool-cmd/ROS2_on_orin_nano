@@ -409,6 +409,43 @@ source ~/.bashrc
 </del>
 ---
 
+
+### 4 解决 Clock Skew (时间同步)
+
+**问题描述**：
+Jetson Orin Nano 掉电后时间重置，导致 `colcon build` 报 `Clock skew detected` 警告，且 ROS 启动后 TF 树报错，无法正常运行。
+
+**解决方案：安装 Chrony 并配置“强制跳变”**
+相比 NTP，Chrony 允许开机瞬间大幅度校准时间，适合无电池的机器人。
+
+1. **安装服务**：
+```bash
+sudo apt install chrony -y
+
+```
+
+
+2. **修改配置**：
+编辑 `/etc/chrony/chrony.conf`，找到 `makestep` 行并修改/取消注释：
+```conf
+# 意思：在前3次更新中，如果误差大于1秒，允许直接跳变 (Step)
+makestep 1.0 3
+
+```
+
+
+3. **重启服务**：
+```bash
+sudo systemctl restart chrony
+
+```
+
+
+*效果：开机联网后时间秒对，编译不再报错。*
+
+---
+以下内容都是包含在官方建图启动脚本里的，无需自己diy
+<del>
 ## 8. 进阶：一键总启动 (Total Launch)
 为了避免每次打开 3 个终端，创建一个总启动文件来管理所有硬件。
 
@@ -447,7 +484,7 @@ def generate_launch_description():
 ```bash
 ros2 launch yahboomcar_bringup bringup_all.launch.py
 ```
-
+</del>
 ---
 
 ## 9. 地面站搭建 (Linux 笔记本)
@@ -505,12 +542,6 @@ rosdepc update
 
 **保存配置**：
 File -> Save Config As -> `~/ros2_ws/src/yahboomcar_bringup/rviz/my_robot.rviz`。
-
----
-
-这是为你整理的 **SLAM 建图篇 README**。
-
-我特意把**“大小写陷阱”**和**“缺失启动文件修复”**这两个关键步骤高亮了出来，因为这是直接阻断运行的硬伤。你可以直接追加到你之前的文档后面。
 
 ---
 
@@ -775,7 +806,54 @@ ros2 run tf2_ros tf2_monitor
 4. **计算与保存**：
    * 观察小车是否正好转回原点。
    * 计算方法同线速度，更新 YAML 文件中的 `angular_scale`。
+没问题，兄弟！根据你今天的实战操作（安装 Chrony 解决时间报错、修正里程计反向问题），我为你整理了这篇 README 更新。
 
+这段内容完全遵循了你之前的文档风格：**硬核、直接、不仅有命令还有代码修改位置**。你可以直接把这段追加到 `README.md` 的最后面。
+
+---
+## 13.2 修正里程计方向 (Driver Fix)
+
+**问题描述**：
+通过 `ros2 topic echo /vel_raw` 观察发现：**物理向前推车，里程计读数显示为负数**。这会导致 SLAM 建图时地图反向移动或撕裂。
+
+**解决方案：修改底层驱动发布逻辑**
+需要修改 Python 驱动文件，将读取到的编码器数值取反。
+
+**文件路径**：`~/ros2_ws/src/yahboomcar_bringup/yahboomcar_bringup/Mcnamu_driver_X3.py`
+
+**修改内容**：
+找到 `pub_data(self)` 函数（约 114 行），修改发布前的赋值逻辑：
+
+```python
+	#pub data
+	def pub_data(self):
+		# ... (前置代码不变)
+		vx, vy, angular = self.car.get_motion_data()
+
+		# ... (中间代码不变)
+		
+		# -------------------------------------------------
+		# 🔧 [修改点] 110转电机物理安装导致编码器反向
+		# 原代码是 * 1.0，改为 * -1.0 进行软件修正
+		# -------------------------------------------------
+		twist.linear.x = vx * -1.0
+		twist.linear.y = vy * -1.0
+		twist.angular.z = angular * -1.0    
+		
+		self.velPublisher.publish(twist)
+
+```
+
+**生效方法**：
+修改保存后，无需重新编译（前提是使用了 `--symlink-install`），直接重启驱动节点即可：
+
+```bash
+ros2 launch yahboomcar_bringup yahboomcar_bringup_X3_launch.py
+
+```
+
+**验证结果**：
+再次 `echo /vel_raw`，向前推车时 `linear.x` 显示为 **正数**，方向修正完成。
 ---
 
 ## 14. SLAM 建图实战 (Gmapping)
@@ -829,20 +907,20 @@ ros2 daemon stop && ros2 daemon start
 
 ---
 
-## 12. SLAM 建图进阶：从 Gmapping 切换至 Cartographer
+## 16. SLAM 建图进阶：从 Gmapping 切换至 Cartographer
 
 **为什么换？**
 *   **Gmapping**：过于依赖里程计，一旦轮子打滑或电机不准，地图立刻重影，且无法自动修正。
 *   **Cartographer**：支持“回环检测”。当小车回到扫过的地方，它能自动识别并把歪掉的地图“掰正”。
 
-### 12.1 安装算法包 (小车端执行)
+### 16.1 安装算法包 (小车端执行)
 JetPack 默认可能不带该算法，需手动补齐：
 ```bash
 sudo apt update
 sudo apt install ros-humble-cartographer ros-humble-cartographer-ros -y
 ```
 
-### 12.2 启动 Cartographer 建图
+### 16.2 启动 Cartographer 建图
 **注意**：启动前请按 `Ctrl+C` 关闭所有之前的驱动和建图窗口。
 
 ```bash
@@ -851,23 +929,23 @@ ros2 launch yahboomcar_nav map_cartographer_launch.py
 ```
 *如果报错找不到文件，请确认 `yahboomcar_nav/launch` 目录下是否有该文件。*
 
-### 12.3 跑图技巧 (针对宿舍狭窄环境)
+### 16.3 跑图技巧 (针对宿舍狭窄环境)
 1.  **分段挪动**：不要一直长按按键。点按 `w` 走 10 厘米，停 1 秒；点按 `a/d` 转 5 度，停 1 秒。
 2.  **制造回环**：控制小车走一个“O”型圈回到起点。当你回到起点时，观察 Rviz2，你会发现原本错位的墙壁可能会猛地跳动一下对齐，这就是 Cartographer 在施展“回环修复”。
 3.  **避开吸光物体**：尽量不要让雷达直对着黑色棉质床单，这会导致雷达数据丢失。
 
 ---
 
-## 13. 地图保存 (ROS 2 Humble 标准方法)
+## 17. 地图保存 (ROS 2 Humble 标准方法)
 
 Cartographer 的地图是动态生成的，建完图后必须手动保存。
 
-### 13.1 安装保存工具 (如未安装)
+### 17.1 安装保存工具 (如未安装)
 ```bash
 sudo apt install ros-humble-nav2-map-server -y
 ```
 
-### 13.2 一键保存指令
+### 17.2 一键保存指令
 在小车或笔记本新终端执行：
 ```bash
 # 路径可自定义，这里保存为 my_room_map
@@ -877,7 +955,7 @@ ros2 run nav2_map_server map_saver_cli -f ~/my_room_map
 
 ---
 
-## 14. 故障自查 (必看)
+## 18. 故障自查 (必看)
 *   **现象：Rviz 显示 Map 报错 "No transform from [map] to [odom]"**
     *   *原因*：建图算法还没初始化成功。
     *   *解决*：控制小车前后挪动一下，给算法一点里程计变化量。
