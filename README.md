@@ -444,8 +444,10 @@ sudo systemctl restart chrony
 *效果：开机联网后时间秒对，编译不再报错。*
 
 ---
-以下内容都是包含在官方建图启动脚本里的，无需自己diy
+**以下内容都是包含在官方建图启动脚本里的，无需自己diy**
+
 <del>
+
 ## 8. 进阶：一键总启动 (Total Launch)
 为了避免每次打开 3 个终端，创建一个总启动文件来管理所有硬件。
 
@@ -484,7 +486,9 @@ def generate_launch_description():
 ```bash
 ros2 launch yahboomcar_bringup bringup_all.launch.py
 ```
+
 </del>
+
 ---
 
 ## 9. 地面站搭建 (Linux 笔记本)
