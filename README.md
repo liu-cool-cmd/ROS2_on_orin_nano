@@ -1,3 +1,10 @@
+# ROS 2 Autonomous Mobile Robot (AMR) - Hardware & System Integration Log
+
+> **Note:** Detailed step-by-step troubleshooting logs and custom configurations are documented in Chinese below.
+
+This repository documents the mechanical packaging, custom harness design, and low-level system bring-up of a Jetson Orin Nano-based AMR. It covers real-world fixes for serial communication, udev rules, time synchronization (Chrony), and Cartographer SLAM deployment.
+
+
 **本机配置：亚博x3麦轮拓展板，astra pro深度相机，4ROS TOF雷达，orin nano 8GB super开发板**  
 **系统：Ubuntu22.04  ROS2（Humble）**  
 大量ai生成的因为我不会  
