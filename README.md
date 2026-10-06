@@ -7,7 +7,7 @@ This repository documents the mechanical packaging, custom harness design, and l
 
 **本机配置：亚博x3麦轮拓展板，astra pro深度相机，4ROS TOF雷达，orin nano 8GB super开发板**  
 **系统：Ubuntu22.04  ROS2（Humble）**  
-大量ai生成的因为我不会  
+包含ai辅助内容
 
 基本命令：
 # 1. 杀掉所有残留的 ROS 进程
